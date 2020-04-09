@@ -2,4 +2,49 @@
 
 #this script will take demultiplexed fastq files (from Guppy) do the following alignment with NGMLR and variants calling with Clair
 
-#usage: yeah /path/to/folder_with_fastq /path/to/folder_for_output
+#usage: yeah /path/to/folder_with_fastq /path/to/folder_for_output /path/to/reference_for_alignment
+
+#before starting you need all dependencies installed and added to PATH (NGMLR, bgzip, tabiz, annovar, whatshap, nanopolish, vcftools, bcftools)
+
+echo preparing files
+
+mkdir $2/mergedfastq $2/aligned $2/sorted_indexed
+
+for D in $1/*
+do
+
+    find $D -name *.fastq -exec cat {} \;  > $2/mergedfastq/${D#"$(dirname "$D")"/}.fastq
+
+done
+
+echo aligning
+
+for f in $1/mergedfastq/*.fastq
+do
+
+    ngmlr \
+	-t 8 \
+	-r $3 \
+	-q $f \
+	-o $2/aligned/${f#"$(dirname "$f")"/}.sam \
+	-x ont
+
+done
+
+echo sorting and indexing
+
+for f in $2/aligned/*.sam
+do
+
+    samtools sort $f \
+	     -o $2/sorted_indexed/${f#"$(dirname "$f")"/}.bam
+
+done
+
+for f in $2/sorted_indexed/*.bam
+do
+
+    samtools index $f
+
+done
+
