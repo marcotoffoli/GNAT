@@ -1,0 +1,5 @@
+#!/bin/bash
+
+#this script will take demultiplexed fastq files (from Guppy) do the following alignment with NGMLR and variants calling with Clair
+
+#usage: yeah /path/to/folder_with_fastq /path/to/folder_for_output
