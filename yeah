@@ -2,13 +2,13 @@
 
 #this script will take demultiplexed fastq files (from Guppy) do the following alignment with NGMLR and variants calling with Clair
 
-#usage: yeah /path/to/folder_with_fastq /path/to/folder_for_output /path/to/reference_for_alignment
+#usage: yeah /path/to/folder_with_fastq /path/to/folder_for_output /path/to/reference_for_alignment /path/to/fast5_folder /path/to/bed_file_with_full_GBA_coverage
 
 #before starting you need all dependencies installed and added to PATH (NGMLR, bgzip, tabiz, annovar, whatshap, nanopolish, vcftools, bcftools)
 
 echo preparing files
 
-mkdir $2/mergedfastq $2/aligned $2/sorted_indexed
+mkdir $2/mergedfastq $2/aligned $2/sorted_indexed $2/clair $2/downsampled_sams $2/finaloutput $2/coverage
 
 for D in $1/*
 do
@@ -19,7 +19,7 @@ done
 
 echo aligning
 
-for f in $1/mergedfastq/*.fastq
+for f in $2/mergedfastq/*.fastq
 do
 
     ngmlr \
@@ -31,9 +31,32 @@ do
 
 done
 
-echo sorting and indexing
+echo adjusting coverage
 
 for f in $2/aligned/*.sam
+do
+
+        var="$(coverageBed -mean -a $5 -b $f | awk '{print $4}')"                                             
+	int=${var%.*}
+
+	    if [ $int -gt 550 ]                                                         
+                                                                                
+    then                                                                        
+
+	var1="$(echo "1/($var/550)" | bc -l)"                                   
+        samtools view -s $var1 -b $f -o $2/downsampled_sams/${f#"$(dirname "$f")"/}.sam  
+                                                                                
+    else                                                                        
+
+	cp $f $2/downsampled_sams/${f#"$(dirname "$f")"/}.sam                            
+                                                                                
+    fi                                                                          
+                                                                                
+done   
+
+echo sorting and indexing
+
+for f in $2/downsampled_sams/*.sam
 do
 
     samtools sort $f \
@@ -47,4 +70,71 @@ do
     samtools index $f
 
 done
+
+echo calling variants
+
+conda activate clair-env
+
+CLAIR=/home/minionpc/Clair/clair.py                                                                                                                                               
+MODEL=/home/minionpc/Clair/ont/model                                                                                                                                              
+REFERENCE_FASTA_FILE_PATH=$3                                                                                                                                 
+CONTIG_NAME=1
+
+for f in $2/sorted_indexed/*.bam                                                                                                                                                    
+do                                                                                                                                                                                
+
+    VARIANT_CALLING_OUTPUT_PATH=$2/clair/$f.vcf                                                                                                                              
+    BAM_FILE_PATH=$f                                                                                                                                                              
+    SAMPLE_NAME=${f#"$(dirname "$f")"/}                                                                                                                                             
+    python $CLAIR callVarBam \                                                                                                                                                    
+           --chkpnt_fn "$MODEL" \                                                                                                                                                 
+           --ref_fn "$REFERENCE_FASTA_FILE_PATH" \                                                                                                                                
+           --bam_fn "$BAM_FILE_PATH" \                                                                                                                                            
+           --ctgName "$CONTIG_NAME" \                                                                                                                                             
+           --sampleName "$SAMPLE_NAME" \                                                                                                                                          
+           --call_fn "$VARIANT_CALLING_OUTPUT_PATH" \                                                                                                                             
+           --minCoverage 20 \                                                                                                                                                     
+           --threshold 0.2 \                                                                                                                                                      
+           --delay 2 \                                                                                                                                                            
+           --ctgStart 155202239 \                                                                                                                                                 
+           --ctgEnd 155216653                                                                                                                                                     
+
+done
+
+for f in  $2/clair/*.vcf                                                                                      
+do                                                                                                        
+
+    bgzip $f                                                                                              
+                                                                                                          
+done                                                                                                      
+                                                                                                          
+for f in $2/clair/*gz                                                                                         
+do                                                                                                        
+
+    tabix -p vcf $f                                                                                       
+                                                                                                          
+done                                                                                                      
+                                                                                                          
+vcf-merge $1/*.gz > $2/finaloutput/final.vcf
+
+echo finalising
+
+for f in $2/downsampled_sams/*.bam
+do
+
+    coverageBed \
+	-mean \
+	-header \
+	-a $5 \
+	-b $f \
+	-o $2/coverage/${f#"$(dirname "$f")"/}.vcf
+
+done
+
+more $2/coverage/* | cat > $2/finaloutput/coverage.vcf
+
+echo oh yeah!
+
+
+
 
