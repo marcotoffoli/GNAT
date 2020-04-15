@@ -2,13 +2,13 @@
 
 #this script will take demultiplexed fastq files (from Guppy) do the following alignment with NGMLR and variants calling with Clair
 
-#usage: yeah /path/to/folder_with_fastq /path/to/folder_for_output /path/to/reference_for_alignment /path/to/fast5_folder /path/to/bed_file_with_full_GBA_coverage
+#usage: yeah /path/to/folder_with_fastq /path/to/folder_for_output /path/to/reference_for_alignment /path/to/bed_file_with_full_GBA_coverage
 
 #before starting you need all dependencies installed and added to PATH (NGMLR, bgzip, tabiz, annovar, whatshap, nanopolish, vcftools, bcftools)
 
 echo preparing files
 
-mkdir $2/mergedfastq $2/aligned $2/sorted_indexed $2/clair $2/downsampled_sams $2/finaloutput $2/coverage
+mkdir $2/mergedfastq $2/aligned $2/sorted_indexed $2/clair $2/downsampled_bams $2/finaloutput $2/coverage $2/downsampled_sorted_indexed
 
 for D in $1/*
 do
@@ -21,46 +21,23 @@ echo aligning
 
 for f in $2/mergedfastq/*.fastq
 do
-
+    
     ngmlr \
 	-t 8 \
 	-r $3 \
 	-q $f \
-	-o $2/aligned/${f#"$(dirname "$f")"/}.sam \
+	-o $2/aligned/$(basename $f .fastq).sam \
 	-x ont
 
 done
 
-echo adjusting coverage
+echo sorting and indexing
 
 for f in $2/aligned/*.sam
 do
 
-        var="$(coverageBed -mean -a $5 -b $f | awk '{print $4}')"                                             
-	int=${var%.*}
-
-	    if [ $int -gt 550 ]                                                         
-                                                                                
-    then                                                                        
-
-	var1="$(echo "1/($var/550)" | bc -l)"                                   
-        samtools view -s $var1 -b $f -o $2/downsampled_sams/${f#"$(dirname "$f")"/}.sam  
-                                                                                
-    else                                                                        
-
-	cp $f $2/downsampled_sams/${f#"$(dirname "$f")"/}.sam                            
-                                                                                
-    fi                                                                          
-                                                                                
-done   
-
-echo sorting and indexing
-
-for f in $2/downsampled_sams/*.sam
-do
-
     samtools sort $f \
-	     -o $2/sorted_indexed/${f#"$(dirname "$f")"/}.bam
+	     -o $2/sorted_indexed/$(basename $f .sam).bam
 
 done
 
@@ -71,7 +48,51 @@ do
 
 done
 
+echo adjusting coverage
+
+for f in $2/sorted_indexed/*.bam
+do
+
+        var="$(coverageBed -mean -a $4 -b $f | awk '{print $4}')"                                             
+	int=${var%.*}
+
+	    if [ $int -gt 550 ]                                                         
+                                                                                
+    then                                                                        
+
+	var1="$(echo "1/($var/550)" | bc -l)"                                   
+        samtools view -s $var1 -b $f -o $2/downsampled_bams/${f#"$(dirname "$f")"/}
+                                                                                
+    else                                                                        
+
+	cp $f $2/downsampled_bams/${f#"$(dirname "$f")"/}                        
+                                                                                
+    fi                                                                          
+                                                                                
+done
+
+echo sorting and indexing 2
+
+for f in $2/downsampled_bams/*.bam
+do
+
+    samtools sort $f \
+	     -o $2/downsampled_sorted_indexed/${f#"$(dirname "$f")"/}
+
+done
+
+for f in $2/downsampled_sorted_indexed/*.bam
+do
+
+    samtools index $f
+
+done
+
 echo calling variants
+
+
+CONDA_BASE=$(conda info --base)
+source $CONDA_BASE/etc/profile.d/conda.sh
 
 conda activate clair-env
 
@@ -83,23 +104,14 @@ CONTIG_NAME=1
 for f in $2/sorted_indexed/*.bam                                                                                                                                                    
 do                                                                                                                                                                                
 
-    VARIANT_CALLING_OUTPUT_PATH=$2/clair/$f.vcf                                                                                                                              
+    VARIANT_CALLING_OUTPUT_PATH=$2/clair/$(basename $f .bam).vcf                                                                                                                              
     BAM_FILE_PATH=$f                                                                                                                                                              
-    SAMPLE_NAME=${f#"$(dirname "$f")"/}                                                                                                                                             
-    python $CLAIR callVarBam \                                                                                                                                                    
-           --chkpnt_fn "$MODEL" \                                                                                                                                                 
-           --ref_fn "$REFERENCE_FASTA_FILE_PATH" \                                                                                                                                
-           --bam_fn "$BAM_FILE_PATH" \                                                                                                                                            
-           --ctgName "$CONTIG_NAME" \                                                                                                                                             
-           --sampleName "$SAMPLE_NAME" \                                                                                                                                          
-           --call_fn "$VARIANT_CALLING_OUTPUT_PATH" \                                                                                                                             
-           --minCoverage 20 \                                                                                                                                                     
-           --threshold 0.2 \                                                                                                                                                      
-           --delay 2 \                                                                                                                                                            
-           --ctgStart 155202239 \                                                                                                                                                 
-           --ctgEnd 155216653                                                                                                                                                     
+    SAMPLE_NAME=$(basename $f .bam)                                                                                                                                            
+    python $CLAIR callVarBam --chkpnt_fn "$MODEL" --ref_fn "$REFERENCE_FASTA_FILE_PATH" --bam_fn "$BAM_FILE_PATH" --ctgName "$CONTIG_NAME" --sampleName "$SAMPLE_NAME" --call_fn "$VARIANT_CALLING_OUTPUT_PATH" --minCoverage 20 --threshold 0.2 --delay 2 --ctgStart 155202239 --ctgEnd 155216653
 
 done
+
+conda deactivate
 
 for f in  $2/clair/*.vcf                                                                                      
 do                                                                                                        
@@ -115,26 +127,22 @@ do
                                                                                                           
 done                                                                                                      
                                                                                                           
-vcf-merge $1/*.gz > $2/finaloutput/final.vcf
+vcf-merge $2/clair/*.gz > $2/finaloutput/final.vcf
 
 echo finalising
 
-for f in $2/downsampled_sams/*.bam
+for f in $2/downsampled_sorted_indexed/*.bam
 do
 
     coverageBed \
 	-mean \
 	-header \
-	-a $5 \
+	-a $4 \
 	-b $f \
-	-o $2/coverage/${f#"$(dirname "$f")"/}.vcf
+	> $2/coverage/$(basename $f .bam).vcf
 
 done
 
 more $2/coverage/* | cat > $2/finaloutput/coverage.vcf
 
 echo oh yeah!
-
-
-
-
