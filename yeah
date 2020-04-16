@@ -8,7 +8,7 @@
 
 echo preparing files
 
-mkdir $2/mergedfastq $2/aligned $2/sorted_indexed $2/clair $2/downsampled_bams $2/finaloutput $2/coverage $2/downsampled_sorted_indexed
+mkdir $2/mergedfastq $2/aligned $2/sorted_indexed $2/clair $2/downsampled_bams $2/finaloutput $2/coverage $2/downsampled_sorted_indexed $2/phased
 
 for D in $1/*
 do
@@ -113,23 +113,37 @@ done
 
 conda deactivate
 
-for f in  $2/clair/*.vcf                                                                                      
+echo phasing
+
+for f in $2/clair/*.vcf
+do
+
+    sample=$(basename $f .vcf)
+
+    whatshap phase $f $2/sorted_indexed/$sample.bam \
+	     --reference $3 \
+	     -o $2/phased/$sample.vcf \
+	     --ignore-read-groups
+
+done
+
+echo finalising
+
+for f in  $2/phased/*.vcf                                                                                      
 do                                                                                                        
 
     bgzip $f                                                                                              
                                                                                                           
 done                                                                                                      
                                                                                                           
-for f in $2/clair/*gz                                                                                         
+for f in $2/phased/*gz                                                                                         
 do                                                                                                        
 
     tabix -p vcf $f                                                                                       
                                                                                                           
 done                                                                                                      
                                                                                                           
-vcf-merge $2/clair/*.gz > $2/finaloutput/final.vcf
-
-echo finalising
+vcf-merge $2/phased/*.gz > $2/finaloutput/final.vcf
 
 for f in $2/downsampled_sorted_indexed/*.bam
 do
