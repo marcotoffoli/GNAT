@@ -1,37 +1,43 @@
 #!/bin/bash
-set -e
-set -u
 set -o pipefail
 
 
 ###############readme
 #this script will take demultiplexed fastq files (from Guppy) do the following alignment with NGMLR and variants calling with Clair
 
-#usage: yeah /path/to/folder_with_fastq  -w /path/to/folder_for_output /path/to/reference_for_alignment /path/to/bed_file_with_full_GBA_coverage
+#usage: yeah -q /path/to/folder_with_fastq  -w /path/to/folder_for_output -r /path/to/reference_for_alignment -b /path/to/bed_file_with_full_GBA_coverage
 
 #before starting you need all dependencies installed and added to PATH (NGMLR, bgzip, tabiz, annovar, whatshap, nanopolish, vcftools, bcftools)
 
 ###########setting options
-while getopts 'w:' OPTION
+while getopts 'q:w:r:b:' OPTION
 do
     case "$OPTION" in
+	q)
+	    FQ="$OPTARG"
+	    ;;
 	w)
 	    WD="$OPTARG"
 	    ;;
+	r)
+	    ref="$OPTARG"
+	    ;;
+	b)
+	    bed="$OPTARG"
+	    ;;	
 	?)
-	echo "must provide option -w" >&2
+	echo "option missing" >&2
+	exit 1
 	;;
     esac
 done
-
-	    
-
+shift "$(($OPTIND -1))" 
 
 echo preparing files
 
 mkdir $WD/mergedfastq $WD/aligned $WD/sorted_indexed $WD/clair $WD/downsampled_bams $WD/finaloutput $WD/coverage $WD/downsampled_sorted_indexed $WD/phased
 
-for D in $1/*
+for D in $FQ/*
 do
 
     find $D -name *.fastq -exec cat {} \;  > $WD/mergedfastq/${D#"$(dirname "$D")"/}.fastq
@@ -45,7 +51,7 @@ do
     
     ngmlr \
 	-t 8 \
-	-r $3 \
+	-r $ref \
 	-q $f \
 	-o $WD/aligned/$(basename $f .fastq).sam \
 	-x ont
@@ -74,7 +80,7 @@ echo adjusting coverage
 for f in $WD/sorted_indexed/*.bam
 do
 
-        var="$(coverageBed -mean -a $4 -b $f | awk '{print $4}')"                                             
+        var="$(coverageBed -mean -a $bed -b $f | awk '{print $4}')"                                             
 	int=${var%.*}
 
 	    if [ $int -gt 550 ]                                                         
@@ -119,16 +125,16 @@ conda activate clair-env
 
 CLAIR=/home/minionpc/Clair/clair.py                                                                                                                                               
 MODEL=/home/minionpc/Clair/ont/model                                                                                                                                              
-REFERENCE_FASTA_FILE_PATH=$3                                                                                                                                 
-CONTIG_NAME=1
+REFERENCE_FASTA_FILE_PATH=$ref                                                                                                                                 
+CONTIG_NAME=chr1
 
-for f in $WD/sorted_indexed/*.bam                                                                                                                                                    
+for f in $WD/sorted_indexed/*.bam                                                                                                                                                   
 do                                                                                                                                                                                
 
     VARIANT_CALLING_OUTPUT_PATH=$WD/clair/$(basename $f .bam).vcf                                                                                                                              
     BAM_FILE_PATH=$f                                                                                                                                                              
     SAMPLE_NAME=$(basename $f .bam)                                                                                                                                            
-    python $CLAIR callVarBam --chkpnt_fn "$MODEL" --ref_fn "$REFERENCE_FASTA_FILE_PATH" --bam_fn "$BAM_FILE_PATH" --ctgName "$CONTIG_NAME" --sampleName "$SAMPLE_NAME" --call_fn "$VARIANT_CALLING_OUTPUT_PATH" --minCoverage 20 --threshold 0.2 --delay 2 --ctgStart 155202239 --ctgEnd 155216653
+    python $CLAIR callVarBam --chkpnt_fn "$MODEL" --ref_fn "$REFERENCE_FASTA_FILE_PATH" --bam_fn "$BAM_FILE_PATH" --ctgName "$CONTIG_NAME" --sampleName "$SAMPLE_NAME" --call_fn "$VARIANT_CALLING_OUTPUT_PATH" --minCoverage 20 --threshold 0.2 --delay 2 --ctgStart 155234452 --ctgEnd 155241249
 
 done
 
@@ -142,7 +148,7 @@ do
     sample=$(basename $f .vcf)
 
     whatshap phase $f $WD/sorted_indexed/$sample.bam \
-	     --reference $3 \
+	     --reference $ref \
 	     -o $WD/phased/$sample.vcf \
 	     --ignore-read-groups
 
@@ -172,7 +178,7 @@ do
     coverageBed \
 	-mean \
 	-header \
-	-a $4 \
+	-a $bed \
 	-b $f \
 	> $WD/coverage/$(basename $f .bam).vcf
 
