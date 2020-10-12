@@ -1,47 +1,68 @@
 #!/bin/bash
+set -e
+set -u
+set -o pipefail
 
+
+###############readme
 #this script will take demultiplexed fastq files (from Guppy) do the following alignment with NGMLR and variants calling with Clair
 
 #usage: yeah /path/to/folder_with_fastq /path/to/folder_for_output /path/to/reference_for_alignment /path/to/bed_file_with_full_GBA_coverage
 
 #before starting you need all dependencies installed and added to PATH (NGMLR, bgzip, tabiz, annovar, whatshap, nanopolish, vcftools, bcftools)
 
+###########setting options
+while getopts 'w:' OPTION
+do
+    case "$OPTION" in
+	w)
+	    WD="$OPTARG"
+	    ;;
+	?)
+	echo "must provide option -w" >&2
+	;;
+    esac
+done
+
+	    
+
+
 echo preparing files
 
-mkdir $2/mergedfastq $2/aligned $2/sorted_indexed $2/clair $2/downsampled_bams $2/finaloutput $2/coverage $2/downsampled_sorted_indexed $2/phased
+mkdir $WD/mergedfastq $WD/aligned $WD/sorted_indexed $WD/clair $WD/downsampled_bams $WD/finaloutput $WD/coverage $WD/downsampled_sorted_indexed $WD/phased
 
 for D in $1/*
 do
 
-    find $D -name *.fastq -exec cat {} \;  > $2/mergedfastq/${D#"$(dirname "$D")"/}.fastq
+    find $D -name *.fastq -exec cat {} \;  > $WD/mergedfastq/${D#"$(dirname "$D")"/}.fastq
 
 done
 
 echo aligning
 
-for f in $2/mergedfastq/*.fastq
+for f in $WD/mergedfastq/*.fastq
 do
     
     ngmlr \
 	-t 8 \
 	-r $3 \
 	-q $f \
-	-o $2/aligned/$(basename $f .fastq).sam \
+	-o $WD/aligned/$(basename $f .fastq).sam \
 	-x ont
 
 done
 
 echo sorting and indexing
 
-for f in $2/aligned/*.sam
+for f in $WD/aligned/*.sam
 do
 
     samtools sort $f \
-	     -o $2/sorted_indexed/$(basename $f .sam).bam
+	     -o $WD/sorted_indexed/$(basename $f .sam).bam
 
 done
 
-for f in $2/sorted_indexed/*.bam
+for f in $WD/sorted_indexed/*.bam
 do
 
     samtools index $f
@@ -50,7 +71,7 @@ done
 
 echo adjusting coverage
 
-for f in $2/sorted_indexed/*.bam
+for f in $WD/sorted_indexed/*.bam
 do
 
         var="$(coverageBed -mean -a $4 -b $f | awk '{print $4}')"                                             
@@ -61,11 +82,11 @@ do
     then                                                                        
 
 	var1="$(echo "1/($var/550)" | bc -l)"                                   
-        samtools view -s $var1 -b $f -o $2/downsampled_bams/${f#"$(dirname "$f")"/}
+        samtools view -s $var1 -b $f -o $WD/downsampled_bams/${f#"$(dirname "$f")"/}
                                                                                 
     else                                                                        
 
-	cp $f $2/downsampled_bams/${f#"$(dirname "$f")"/}                        
+	cp $f $WD/downsampled_bams/${f#"$(dirname "$f")"/}                        
                                                                                 
     fi                                                                          
                                                                                 
@@ -73,15 +94,15 @@ done
 
 echo sorting and indexing 2
 
-for f in $2/downsampled_bams/*.bam
+for f in $WD/downsampled_bams/*.bam
 do
 
     samtools sort $f \
-	     -o $2/downsampled_sorted_indexed/${f#"$(dirname "$f")"/}
+	     -o $WD/downsampled_sorted_indexed/${f#"$(dirname "$f")"/}
 
 done
 
-for f in $2/downsampled_sorted_indexed/*.bam
+for f in $WD/downsampled_sorted_indexed/*.bam
 do
 
     samtools index $f
@@ -101,10 +122,10 @@ MODEL=/home/minionpc/Clair/ont/model
 REFERENCE_FASTA_FILE_PATH=$3                                                                                                                                 
 CONTIG_NAME=1
 
-for f in $2/sorted_indexed/*.bam                                                                                                                                                    
+for f in $WD/sorted_indexed/*.bam                                                                                                                                                    
 do                                                                                                                                                                                
 
-    VARIANT_CALLING_OUTPUT_PATH=$2/clair/$(basename $f .bam).vcf                                                                                                                              
+    VARIANT_CALLING_OUTPUT_PATH=$WD/clair/$(basename $f .bam).vcf                                                                                                                              
     BAM_FILE_PATH=$f                                                                                                                                                              
     SAMPLE_NAME=$(basename $f .bam)                                                                                                                                            
     python $CLAIR callVarBam --chkpnt_fn "$MODEL" --ref_fn "$REFERENCE_FASTA_FILE_PATH" --bam_fn "$BAM_FILE_PATH" --ctgName "$CONTIG_NAME" --sampleName "$SAMPLE_NAME" --call_fn "$VARIANT_CALLING_OUTPUT_PATH" --minCoverage 20 --threshold 0.2 --delay 2 --ctgStart 155202239 --ctgEnd 155216653
@@ -115,37 +136,37 @@ conda deactivate
 
 echo phasing
 
-for f in $2/clair/*.vcf
+for f in $WD/clair/*.vcf
 do
 
     sample=$(basename $f .vcf)
 
-    whatshap phase $f $2/sorted_indexed/$sample.bam \
+    whatshap phase $f $WD/sorted_indexed/$sample.bam \
 	     --reference $3 \
-	     -o $2/phased/$sample.vcf \
+	     -o $WD/phased/$sample.vcf \
 	     --ignore-read-groups
 
 done
 
 echo finalising
 
-for f in  $2/phased/*.vcf                                                                                      
+for f in  $WD/phased/*.vcf                                                                                      
 do                                                                                                        
 
     bgzip $f                                                                                              
                                                                                                           
 done                                                                                                      
                                                                                                           
-for f in $2/phased/*gz                                                                                         
+for f in $WD/phased/*gz                                                                                         
 do                                                                                                        
 
     tabix -p vcf $f                                                                                       
                                                                                                           
 done                                                                                                      
                                                                                                           
-vcf-merge $2/phased/*.gz > $2/finaloutput/final.vcf
+vcf-merge $WD/phased/*.gz > $WD/finaloutput/final.vcf
 
-for f in $2/downsampled_sorted_indexed/*.bam
+for f in $WD/downsampled_sorted_indexed/*.bam
 do
 
     coverageBed \
@@ -153,10 +174,10 @@ do
 	-header \
 	-a $4 \
 	-b $f \
-	> $2/coverage/$(basename $f .bam).vcf
+	> $WD/coverage/$(basename $f .bam).vcf
 
 done
 
-more $2/coverage/* | cat > $2/finaloutput/coverage.vcf
+more $WD/coverage/* | cat > $WD/finaloutput/coverage.vcf
 
 echo oh yeah!
