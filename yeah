@@ -7,7 +7,7 @@ set -o pipefail
 ###############readme
 #this script will take demultiplexed fastq files (from Guppy) do the following alignment with NGMLR and variants calling with Clair
 
-#usage: yeah /path/to/folder_with_fastq /path/to/folder_for_output /path/to/reference_for_alignment /path/to/bed_file_with_full_GBA_coverage
+#usage: yeah /path/to/folder_with_fastq  -w /path/to/folder_for_output /path/to/reference_for_alignment /path/to/bed_file_with_full_GBA_coverage
 
 #before starting you need all dependencies installed and added to PATH (NGMLR, bgzip, tabiz, annovar, whatshap, nanopolish, vcftools, bcftools)
 
