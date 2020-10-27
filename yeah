@@ -134,7 +134,7 @@ do
     VARIANT_CALLING_OUTPUT_PATH=$WD/clair/$(basename $f .bam).vcf                                                                                                                              
     BAM_FILE_PATH=$f                                                                                                                                                              
     SAMPLE_NAME=$(basename $f .bam)                                                                                                                                            
-    python $CLAIR callVarBam --chkpnt_fn "$MODEL" --ref_fn "$REFERENCE_FASTA_FILE_PATH" --bam_fn "$BAM_FILE_PATH" --ctgName "$CONTIG_NAME" --sampleName "$SAMPLE_NAME" --call_fn "$VARIANT_CALLING_OUTPUT_PATH" --minCoverage 20 --threshold 0.2 --delay 2 --ctgStart 155234452 --ctgEnd 155241249
+    python $CLAIR callVarBam --chkpnt_fn "$MODEL" --ref_fn "$REFERENCE_FASTA_FILE_PATH" --bam_fn "$BAM_FILE_PATH" --ctgName "$CONTIG_NAME" --sampleName "$SAMPLE_NAME" --call_fn "$VARIANT_CALLING_OUTPUT_PATH" --minCoverage 20 --threshold 0.2 --delay 2 --ctgStart 155234452 --ctgEnd 155241249 -dcov 1000
 
 done
 
