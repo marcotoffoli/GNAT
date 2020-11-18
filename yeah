@@ -10,9 +10,9 @@ set -e
 #before starting you need all dependencies installed and added to PATH (NGMLR, bgzip, tabiz, annovar, whatshap, nanopolish, vcftools, bcftools)
 
 ###########setting options
-taget=chr1:155234452-155241249
+target=chr1:155234452-155241249
 
-while getopts 'q:w:r:b:t:' OPTION
+while getopts 'q:w:r:b:Q:t:' OPTION
 do
     case "$OPTION" in
 	q)
@@ -29,6 +29,9 @@ do
 	    ;;
 	t)
 	    target="$OPTARG"
+	    ;;
+	Q)
+	    qual="$OPTARG"
 	    ;;
 	?)
 	echo "option missing" >&2
@@ -143,7 +146,7 @@ do
     VARIANT_CALLING_OUTPUT_PATH=$WD/clair/$(basename $f .bam).vcf                                                                                                                              
     BAM_FILE_PATH=$f                                                                                                                                                              
     SAMPLE_NAME=$(basename $f .bam)                                                                                                                                            
-    python $CLAIR callVarBam --chkpnt_fn "$MODEL" --ref_fn "$REFERENCE_FASTA_FILE_PATH" --bam_fn "$BAM_FILE_PATH" --ctgName "$target1" --sampleName "$SAMPLE_NAME" --call_fn "$VARIANT_CALLING_OUTPUT_PATH" --minCoverage 20 --threshold 0.2 --delay 2 --ctgStart "$target2" --ctgEnd "$target3" -dcov 1000
+    python $CLAIR callVarBam --chkpnt_fn "$MODEL" --ref_fn "$REFERENCE_FASTA_FILE_PATH" --bam_fn "$BAM_FILE_PATH" --ctgName "$target1" --sampleName "$SAMPLE_NAME" --call_fn "$VARIANT_CALLING_OUTPUT_PATH" --minCoverage 20 --threshold 0.2 --delay 2 --ctgStart "$target2" --ctgEnd "$target3" --dcov 1000
 
 done
 
@@ -154,7 +157,7 @@ echo filtering variants
 for f in $WD/clair/*.vcf
 do
     
-	 bcftools view -i 'GQ > 500' $f -o $WD/QG_filter/$(basename $f .vcf).vcf
+	 bcftools view -i "GQ > $qual" $f -o $WD/QG_filter/$(basename $f .vcf).vcf
 
 done
 
