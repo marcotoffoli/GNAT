@@ -1,16 +1,18 @@
 #!/bin/bash
 set -o pipefail
-
+set -e
 
 ###############readme
 #this script will take demultiplexed fastq files (from Guppy) do the following alignment with NGMLR and variants calling with Clair
 
-#usage: yeah -q /path/to/folder_with_fastq  -w /path/to/folder_for_output -r /path/to/reference_for_alignment -b /path/to/bed_file_with_full_GBA_coverage
+#usage: yeah -q /path/to/folder_with_fastq  -w /path/to/folder_for_output -r /path/to/reference_for_alignment -b /path/to/bed_file_with_full_GBA_coverage -Q threshold_for_QG_filtering_of_called_variants -t target_region(format chrx:nnnnnnnnn-nnnnnnnnn)[default chr1:155234452-155241249]
 
 #before starting you need all dependencies installed and added to PATH (NGMLR, bgzip, tabiz, annovar, whatshap, nanopolish, vcftools, bcftools)
 
 ###########setting options
-while getopts 'q:w:r:b:' OPTION
+taget=chr1:155234452-155241249
+
+while getopts 'q:w:r:b:t:' OPTION
 do
     case "$OPTION" in
 	q)
@@ -24,7 +26,10 @@ do
 	    ;;
 	b)
 	    bed="$OPTARG"
-	    ;;	
+	    ;;
+	t)
+	    target="$OPTARG"
+	    ;;
 	?)
 	echo "option missing" >&2
 	exit 1
@@ -35,7 +40,7 @@ shift "$(($OPTIND -1))"
 
 echo preparing files
 
-mkdir $WD/mergedfastq $WD/aligned $WD/sorted_indexed $WD/clair $WD/downsampled_bams $WD/finaloutput $WD/coverage $WD/downsampled_sorted_indexed $WD/phased
+mkdir $WD/mergedfastq $WD/aligned $WD/sorted_indexed $WD/clair $WD/downsampled_bams $WD/finaloutput $WD/coverage $WD/downsampled_sorted_indexed $WD/QG_filter $WD/phased
 
 for D in $FQ/*
 do
@@ -117,6 +122,10 @@ done
 
 echo calling variants
 
+target1=${target%:*}
+Sacile=${target#*:}
+target2=${Sacile%-*}
+target3=${target#*-}
 
 CONDA_BASE=$(conda info --base)
 source $CONDA_BASE/etc/profile.d/conda.sh
@@ -134,15 +143,24 @@ do
     VARIANT_CALLING_OUTPUT_PATH=$WD/clair/$(basename $f .bam).vcf                                                                                                                              
     BAM_FILE_PATH=$f                                                                                                                                                              
     SAMPLE_NAME=$(basename $f .bam)                                                                                                                                            
-    python $CLAIR callVarBam --chkpnt_fn "$MODEL" --ref_fn "$REFERENCE_FASTA_FILE_PATH" --bam_fn "$BAM_FILE_PATH" --ctgName "$CONTIG_NAME" --sampleName "$SAMPLE_NAME" --call_fn "$VARIANT_CALLING_OUTPUT_PATH" --minCoverage 20 --threshold 0.2 --delay 2 --ctgStart 155234452 --ctgEnd 155241249 -dcov 1000
+    python $CLAIR callVarBam --chkpnt_fn "$MODEL" --ref_fn "$REFERENCE_FASTA_FILE_PATH" --bam_fn "$BAM_FILE_PATH" --ctgName "$target1" --sampleName "$SAMPLE_NAME" --call_fn "$VARIANT_CALLING_OUTPUT_PATH" --minCoverage 20 --threshold 0.2 --delay 2 --ctgStart "$target2" --ctgEnd "$target3" -dcov 1000
 
 done
 
 conda deactivate
 
-echo phasing
+echo filtering variants
 
 for f in $WD/clair/*.vcf
+do
+    
+	 bcftools view -i 'GQ > 500' $f -o $WD/QG_filter/$(basename $f .vcf).vcf
+
+done
+
+echo phasing
+
+for f in $WD/QG_filter/*.vcf
 do
 
     sample=$(basename $f .vcf)
