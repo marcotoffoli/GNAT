@@ -43,7 +43,7 @@ shift "$(($OPTIND -1))"
 
 echo preparing files
 
-mkdir $WD/mergedfastq $WD/aligned $WD/sorted_indexed $WD/clair $WD/downsampled_bams $WD/finaloutput $WD/coverage $WD/downsampled_sorted_indexed $WD/QG_filter $WD/phased
+mkdir $WD/mergedfastq $WD/aligned $WD/sorted_indexed $WD/clair $WD/downsampled_bams $WD/finaloutput $WD/coverage $WD/downsampled_sorted_indexed $WD/QG_filter $WD/phased $WD/phased_unfiltered
 
 for D in $FQ/*
 do
@@ -175,6 +175,20 @@ do
 
 done
 
+echo phasing non-filtered vcfs
+
+for f in $WD/clair/*.vcf
+do
+
+    sample=$(basename $f .vcf)
+
+    whatshap phase $f $WD/sorted_indexed/$sample.bam \
+	     --reference $ref \
+	     -o $WD/phased_unfiltered/$sample.vcf \
+	     --ignore-read-groups
+
+done
+
 echo finalising
 
 for f in  $WD/phased/*.vcf                                                                                      
@@ -206,5 +220,21 @@ do
 done
 
 more $WD/coverage/* | cat > $WD/finaloutput/coverage.vcf
+
+for f in  $WD/phased_unfiltered/*.vcf                                                                                      
+do                                                                                                        
+
+    bgzip $f                                                                                              
+                                                                                                          
+done                                                                                                      
+                                                                                                          
+for f in $WD/phased_unfiltered/*gz                                                                                         
+do                                                                                                        
+
+    tabix -p vcf $f                                                                                       
+                                                                                                          
+done                                                                                                      
+                                                                                                          
+vcf-merge $WD/phased_untiltered/*.gz > $WD/finaloutput/final_unfiltered.vcf
 
 echo oh yeah!
