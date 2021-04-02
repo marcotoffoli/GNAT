@@ -5,9 +5,11 @@ set -e
 ###############readme
 #this script will take demultiplexed fastq files (from Guppy) do the following alignment with NGMLR and variants calling with Clair
 
-#usage: yeah -q /path/to/folder_with_fastq  -w /path/to/folder_for_output -r /path/to/reference_for_alignment -b /path/to/bed_file_with_full_GBA_coverage -Q threshold_for_QG_filtering_of_called_variants -t target_region(format chrx:nnnnnnnnn-nnnnnnnnn)[default chr1:155234452-155241249]
+#usage: yeah -q /path/to/folder_with_fastq  -w /path/to/folder_for_output -r /path/to/reference_for_alignment -b /path/to/bed_file_with_full_GBA_coverage -Q threshold_for_QG_filtering_of_called_variants -t target_region(format chrx:nnnnnnnnn-nnnnnnnnn)[default chr1:155234452-155241249] -C /path/to/clair.py -cm /path/to/clair/modules/folder
 
-#before starting you need all dependencies installed and added to PATH (NGMLR, bgzip, tabiz, annovar, whatshap, nanopolish, vcftools, bcftools)
+#before starting you need all dependencies installed and added to PATH (NGMLR, bgzip, tabiz, annovar, whatshap, vcftools, bcftools, Clair).
+
+#I isntalled Clair without conda environments so that it works by just calling python /path/to/clair.py. If you installed it differently you will have to update the script to activate and deactivate environments
 
 ###########setting options
 target=chr1:155234452-155241249
@@ -33,6 +35,11 @@ do
 	Q)
 	    qual="$OPTARG"
 	    ;;
+	C)
+	    CLAIR="$OPTARG"
+	    ;;
+	cm)
+	    MODEL="$OPTARG/model"
 	?)
 	echo "option missing" >&2
 	exit 1
@@ -125,19 +132,15 @@ done
 
 echo calling variants
 
+conda activate clair-env
+
 target1=${target%:*}
 Sacile=${target#*:}
 target2=${Sacile%-*}
 target3=${target#*-}
 
 CONDA_BASE=$(conda info --base)
-source $CONDA_BASE/etc/profile.d/conda.sh
-
-conda activate clair-env
-
-CLAIR=/home/minionpc/Clair/clair.py                                                                                                                                               
-MODEL=/home/minionpc/Clair/ont/model                                                                                                                                              
-REFERENCE_FASTA_FILE_PATH=$ref                                                                                                                                 
+source $CONDA_BASE/etc/profile.d/conda.sh                                                                                    
 CONTIG_NAME=chr1
 
 for f in $WD/downsampled_sorted_indexed/*.bam                                                                                                                                                   
@@ -146,11 +149,9 @@ do
     VARIANT_CALLING_OUTPUT_PATH=$WD/clair/$(basename $f .bam).vcf                                                                                                                              
     BAM_FILE_PATH=$f                                                                                                                                                              
     SAMPLE_NAME=$(basename $f .bam)                                                                                                                                            
-    python $CLAIR callVarBam --chkpnt_fn "$MODEL" --ref_fn "$REFERENCE_FASTA_FILE_PATH" --bam_fn "$BAM_FILE_PATH" --ctgName "$target1" --sampleName "$SAMPLE_NAME" --call_fn "$VARIANT_CALLING_OUTPUT_PATH" --minCoverage 20 --threshold 0.2 --delay 2 --ctgStart "$target2" --ctgEnd "$target3" --dcov 1000
+    python $CLAIR callVarBam --chkpnt_fn "$MODEL" --ref_fn "$ref" --bam_fn "$BAM_FILE_PATH" --ctgName "$target1" --sampleName "$SAMPLE_NAME" --call_fn "$VARIANT_CALLING_OUTPUT_PATH" --minCoverage 20 --threshold 0.2 --delay 0 --ctgStart "$target2" --ctgEnd "$target3" --dcov 1000
 
 done
-
-conda deactivate
 
 echo filtering variants
 
