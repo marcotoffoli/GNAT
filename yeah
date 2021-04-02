@@ -234,8 +234,6 @@ do
 
     tabix -p vcf $f                                                                                       
                                                                                                           
-done                                                                                                      
-                                                                                                          
-vcf-merge $WD/phased_untiltered/*.gz > $WD/finaloutput/final_unfiltered.vcf
+done
 
 echo oh yeah!
