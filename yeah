@@ -14,7 +14,7 @@ set -e
 ###########setting options
 target=chr1:155234452-155241249
 
-while getopts 'q:w:r:b:Q:t:' OPTION
+while getopts 'q:w:r:b:Q:t:C:m:' OPTION
 do
     case "$OPTION" in
 	q)
@@ -38,8 +38,9 @@ do
 	C)
 	    CLAIR="$OPTARG"
 	    ;;
-	cm)
+	m)
 	    MODEL="$OPTARG/model"
+	    ;;
 	?)
 	echo "option missing" >&2
 	exit 1
@@ -132,15 +133,11 @@ done
 
 echo calling variants
 
-conda activate clair-env
-
 target1=${target%:*}
 Sacile=${target#*:}
 target2=${Sacile%-*}
 target3=${target#*-}
-
-CONDA_BASE=$(conda info --base)
-source $CONDA_BASE/etc/profile.d/conda.sh                                                                                    
+                                                                               
 CONTIG_NAME=chr1
 
 for f in $WD/downsampled_sorted_indexed/*.bam                                                                                                                                                   
