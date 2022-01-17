@@ -5,7 +5,7 @@ set -e
 ###############readme
 #this script will take demultiplexed fastq files (from Guppy) do the following alignment with NGMLR and variants calling with Clair
 
-#usage: yeah -q /path/to/folder_with_fastq  -w /path/to/folder_for_output -r /path/to/reference_for_alignment -b /path/to/bed_file_with_full_GBA_coverage -Q threshold_for_QG_filtering_of_called_variants -t target_region(format chrx:nnnnnnnnn-nnnnnnnnn)[default chr1:155234452-155241249] -C /path/to/clair.py -cm /path/to/clair/modules/folder
+#usage: GNAT -q /path/to/folder_with_fastq  -w /path/to/folder_for_output -r /path/to/reference_for_alignment -b /path/to/bed_file_with_full_GBA_coverage -Q threshold_for_QG_filtering_of_called_variants -t target_region(format chrx:nnnnnnnnn-nnnnnnnnn)[default chr1:155234452-155241249] -C /path/to/clair.py -cm /path/to/clair/modules/folder
 
 #before starting you need all dependencies installed and added to PATH (NGMLR, bgzip, tabiz, annovar, whatshap, vcftools, bcftools, Clair).
 
