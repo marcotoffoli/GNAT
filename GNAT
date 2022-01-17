@@ -9,7 +9,7 @@ set -e
 
 #before starting you need all dependencies installed and added to PATH (NGMLR, bgzip, tabiz, annovar, whatshap, vcftools, bcftools, Clair).
 
-#I installed Clair without conda environments so that it works by just calling python /path/to/clair.py. If you installed it differently you will have to update the script to activate and deactivate environments
+#I installed Clair without conda environments so that it works by just calling python /path/to/clair.py. If you installed it differently you will have to update the script to activate and deactivate environments.
 
 ###########setting options
 target=chr1:155234452-155241249
