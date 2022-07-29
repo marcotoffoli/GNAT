@@ -5,9 +5,9 @@ set -e
 ###############readme
 #this script will take demultiplexed fastq files (from Guppy) do the following alignment with NGMLR and variants calling with Clair
 
-#usage: GNAT -q /path/to/folder_with_fastq  -w /path/to/folder_for_output -r /path/to/reference_for_alignment -b /path/to/bed_file_with_full_GBA_coverage -Q threshold_for_QG_filtering_of_called_variants -t target_region(format chrx:nnnnnnnnn-nnnnnnnnn)[default chr1:155234452-155241249] -C /path/to/clair.py -cm /path/to/clair/modules/folder
+#usage: GNAT -q /path/to/folder_with_fastq  -w /path/to/folder_for_output -r /path/to/reference_for_alignment -b /path/to/bed_file_with_full_GBA_coverage -Q threshold_for_QG_filtering_of_called_variants -t target_region(format chrx:nnnnnnnnn-nnnnnnnnn)[default chr1:155234452-155241249] -C /path/to/clair.py -m /path/to/clair/modules/folder
 
-#before starting you need all dependencies installed and added to PATH (NGMLR, bgzip, tabiz, annovar, whatshap, vcftools, bcftools, Clair).
+#before starting you need all dependencies installed and added to PATH (NGMLR, bgzip, tabiz, annovar, whatshap, bcftools, Clair).
 
 #I installed Clair without conda environments so that it works by just calling python /path/to/clair.py. If you installed it differently you will have to update the script to activate and deactivate environments.
 
@@ -161,6 +161,8 @@ done
 
 echo phasing
 
+set +e
+
 for f in $WD/QG_filter/*.vcf
 do
 
@@ -187,6 +189,8 @@ do
 
 done
 
+set -e
+
 echo finalising
 
 for f in  $WD/phased/*.vcf                                                                                      
@@ -203,7 +207,7 @@ do
                                                                                                           
 done                                                                                                      
                                                                                                           
-vcf-merge $WD/phased/*.gz > $WD/finaloutput/final.vcf
+bcftools merge $WD/phased/*.gz -o $WD/finaloutput/final.vcf
 
 for f in $WD/downsampled_sorted_indexed/*.bam
 do
